@@ -9,6 +9,8 @@ import {
   BookmarkCheck,
   Car,
   Navigation,
+  RefreshCw,
+  Radio,
 } from 'lucide-react';
 import { RideOffer, User } from '../types';
 import { InteractiveRouteMap } from '../components/InteractiveRouteMap';
@@ -22,15 +24,19 @@ interface RequestRideScreenProps {
   onBookRide: (rideId: string) => void;
   onDeleteRide?: (rideId: string) => void;
   onSelectRideForTracking?: (ride: RideOffer) => void;
+  onRefreshRides?: () => Promise<void> | void;
+  isSyncing?: boolean;
 }
 
 export const RequestRideScreen: React.FC<RequestRideScreenProps> = ({
-  currentUser,
+  currentUser: _currentUser,
   rideOffers,
   bookedRideIds,
   onBookRide,
   onDeleteRide,
-  onSelectRideForTracking,
+  onSelectRideForTracking: _onSelectRideForTracking,
+  onRefreshRides,
+  isSyncing = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRide, setSelectedRide] = useState<RideOffer | null>(
@@ -51,28 +57,48 @@ export const RequestRideScreen: React.FC<RequestRideScreenProps> = ({
   const routeMatch = selectedRide ? matchRoute(selectedRide) : null;
 
   return (
-    <div className="space-y-6 pb-12 animate-fade-in">
+    <div className="space-y-5 pb-12 animate-fade-in">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-black text-slate-900 font-['Outfit',sans-serif]">
-            Campus Ride Directory
-          </h2>
+          <div className="flex items-center gap-2 mb-0.5">
+            <h2 className="text-xl font-black text-slate-900 font-['Outfit',sans-serif]">
+              Campus Ride Directory
+            </h2>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Live Sync
+            </span>
+          </div>
           <p className="text-xs text-slate-500">
-            Real-time verified student carpools & instant seat reservation
+            Real-time student carpools & instant seat reservation
           </p>
         </div>
 
-        {/* Search Input */}
-        <div className="relative max-w-xs w-full">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search campus or destination..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs"
-          />
+        {/* Search & Refresh Bar */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-56">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search campus or city..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 text-xs rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs"
+            />
+          </div>
+
+          {onRefreshRides && (
+            <button
+              onClick={() => onRefreshRides()}
+              title="Refresh live rides from server"
+              className={`p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 active:scale-95 transition-all shadow-xs flex items-center justify-center shrink-0 ${
+                isSyncing ? 'text-indigo-600 bg-indigo-50 border-indigo-200' : ''
+              }`}
+            >
+              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin text-indigo-600' : ''}`} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -89,11 +115,11 @@ export const RequestRideScreen: React.FC<RequestRideScreenProps> = ({
       {/* Available Rides List */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-slate-800">
+          <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
             Available Student Rides ({filteredRides.length})
           </h3>
-          <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full">
-            All 100% Student Verified
+          <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+            ✓ 100% Student Verified
           </span>
         </div>
 
@@ -107,16 +133,27 @@ export const RequestRideScreen: React.FC<RequestRideScreenProps> = ({
               <p className="text-xs text-slate-500 max-w-sm mx-auto mb-4">
                 {searchQuery
                   ? `No rides match "${searchQuery}". Try a different location search.`
-                  : 'There are currently no active campus carpool offers posted. Tap Offer Ride to create the first one!'}
+                  : 'There are currently no active campus carpool offers posted. When friends post rides, they will show here automatically!'}
               </p>
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="py-2 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all"
-                >
-                  Clear Search Filter
-                </button>
-              )}
+              <div className="flex items-center justify-center gap-2">
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="py-2 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all"
+                  >
+                    Clear Search Filter
+                  </button>
+                )}
+                {onRefreshRides && (
+                  <button
+                    onClick={() => onRefreshRides()}
+                    className="py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                    Check for New Rides
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             filteredRides.map((ride) => {

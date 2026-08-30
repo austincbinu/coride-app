@@ -6,28 +6,32 @@ import {
   Fuel,
   ShieldCheck,
   MessageSquare,
-  TrendingUp,
-  Leaf,
-  Users,
   Clock,
   Sparkles,
   Shield,
-  History,
+  ArrowRight,
+  UserCheck,
 } from 'lucide-react';
 import { RideOffer, TabScreen, User } from '../types';
 
 interface HomeScreenProps {
   currentUser: User | null;
   activeRide: RideOffer | null;
+  rideOffers?: RideOffer[];
+  bookedRideIds?: string[];
   onNavigate: (tab: TabScreen) => void;
   onSelectRide: (ride: RideOffer) => void;
+  onBookRide?: (rideId: string) => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   currentUser,
   activeRide,
+  rideOffers = [],
+  bookedRideIds = [],
   onNavigate,
-  onSelectRide: _onSelectRide,
+  onSelectRide,
+  onBookRide,
 }) => {
   return (
     <div className="space-y-4 pb-8 animate-fade-in">
@@ -35,9 +39,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-indigo-900 via-indigo-800 to-slate-950 p-5 sm:p-6 text-white shadow-xl">
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
         <div className="relative z-10 flex flex-col gap-3">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 text-[11px] font-semibold w-fit">
-            <Sparkles className="w-3 h-3 text-indigo-300" />
-            Verified Campus Carpool Network
+          <div className="flex items-center justify-between">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 text-[11px] font-semibold w-fit">
+              <Sparkles className="w-3 h-3 text-indigo-300" />
+              Verified Campus Carpool Network
+            </div>
+            <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-500/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Live Synced
+            </div>
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white mb-1 font-['Outfit',sans-serif]">
@@ -123,13 +133,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </div>
 
-      {/* Active Scheduled Ride Card or Clean Empty State */}
-      {activeRide ? (
+      {/* Active Scheduled Ride Card */}
+      {activeRide && (
         <div className="bg-white rounded-3xl border border-slate-200/90 p-4 sm:p-5 shadow-xs">
           <div className="flex items-center justify-between mb-2.5">
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-              <h3 className="font-bold text-xs text-slate-900">Active Scheduled Ride</h3>
+              <h3 className="font-bold text-xs text-slate-900">Your Reserved Ride</h3>
             </div>
             <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
               ₹{activeRide.basePricePerSeat.toFixed(2)} / seat
@@ -182,35 +192,123 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               className="py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-xs"
             >
               <Search className="w-3.5 h-3.5" />
-              View Route
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-white rounded-3xl border border-slate-200/90 p-5 shadow-xs text-center">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-2">
-            <Car className="w-5 h-5" />
-          </div>
-          <h3 className="font-bold text-sm text-slate-900 mb-1">No Active Ride</h3>
-          <p className="text-xs text-slate-500 mb-3">
-            Search for campus carpools or post your own route to share empty seats.
-          </p>
-          <div className="flex items-center justify-center gap-2">
-            <button
-              onClick={() => onNavigate('request')}
-              className="py-2 px-3 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-bold transition-all"
-            >
-              Search Rides
-            </button>
-            <button
-              onClick={() => onNavigate('offer')}
-              className="py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs"
-            >
-              Offer a Ride
+              View Map
             </button>
           </div>
         </div>
       )}
+
+      {/* Live Available Rides Section */}
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
+            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Live Campus Rides ({rideOffers.length})
+            </h2>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          </div>
+          <button
+            onClick={() => onNavigate('request')}
+            className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+          >
+            View All <ArrowRight className="w-3 h-3" />
+          </button>
+        </div>
+
+        {rideOffers.length === 0 ? (
+          <div className="bg-white rounded-3xl border border-slate-200/90 p-5 shadow-xs text-center">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-2">
+              <Car className="w-5 h-5" />
+            </div>
+            <h3 className="font-bold text-sm text-slate-900 mb-1">No Active Rides Yet</h3>
+            <p className="text-xs text-slate-500 mb-3">
+              Be the first student to offer a ride or check back when a friend posts!
+            </p>
+            <button
+              onClick={() => onNavigate('offer')}
+              className="py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs"
+            >
+              Offer a Ride
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {rideOffers.slice(0, 3).map((ride) => {
+              const isBooked = bookedRideIds.includes(ride.id);
+              return (
+                <div
+                  key={ride.id}
+                  className="bg-white rounded-2xl p-4 border border-slate-200/90 hover:border-indigo-300 shadow-xs transition-all flex flex-col gap-2.5"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                        {ride.driverName}
+                        {ride.isDriverVerified && (
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-500">
+                        {ride.driverCollege} • ⭐ {ride.driverRating.toFixed(1)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-black text-indigo-600">
+                        ₹{ride.basePricePerSeat.toFixed(2)}
+                      </div>
+                      <div className="text-[10px] font-semibold text-emerald-600">
+                        {ride.availableSeats} seats left
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 p-2 rounded-xl text-[11px] text-slate-700 flex items-center justify-between">
+                    <span className="truncate">
+                      <strong>{ride.originName.split(',')[0]}</strong> ➔ <strong>{ride.destinationName.split(',')[0]}</strong>
+                    </span>
+                    <span className="text-slate-500 shrink-0 font-medium ml-2">{ride.departureTime}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <button
+                      onClick={() => {
+                        onSelectRide(ride);
+                        onNavigate('request');
+                      }}
+                      className="flex-1 py-1.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all"
+                    >
+                      Route Map
+                    </button>
+                    {onBookRide && (
+                      <button
+                        onClick={() => onBookRide(ride.id)}
+                        disabled={isBooked || ride.availableSeats === 0}
+                        className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                          isBooked
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : ride.availableSeats === 0
+                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
+                        }`}
+                      >
+                        {isBooked ? (
+                          <>
+                            <UserCheck className="w-3.5 h-3.5" /> Booked
+                          </>
+                        ) : ride.availableSeats === 0 ? (
+                          'Full'
+                        ) : (
+                          'Reserve Seat'
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Account Verification & Trust Banner */}
       {currentUser ? (

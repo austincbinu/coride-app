@@ -252,4 +252,53 @@ export const apiClient = {
       return null;
     }
   },
+
+  // Real-time Push Subscription (Server-Sent Events)
+  subscribeToRealtimeEvents(onEvent: (event: any) => void): () => void {
+    if (typeof window === 'undefined' || !window.EventSource) {
+      return () => {};
+    }
+
+    let es: EventSource | null = null;
+    let isClosed = false;
+
+    const connect = () => {
+      if (isClosed) return;
+      try {
+        es = new EventSource('/api/events');
+
+        es.onmessage = (event) => {
+          try {
+            if (!event.data || event.data === ': ping') return;
+            const parsed = JSON.parse(event.data);
+            onEvent(parsed);
+          } catch (e) {
+            console.warn('Real-time event parse warning:', e);
+          }
+        };
+
+        es.onerror = () => {
+          if (es) {
+            es.close();
+            es = null;
+          }
+          if (!isClosed) {
+            // Reconnect after 3 seconds if disconnected
+            setTimeout(connect, 3000);
+          }
+        };
+      } catch (err) {
+        console.warn('Failed to establish EventSource:', err);
+      }
+    };
+
+    connect();
+
+    return () => {
+      isClosed = true;
+      if (es) {
+        es.close();
+      }
+    };
+  },
 };

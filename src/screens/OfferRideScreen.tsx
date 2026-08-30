@@ -23,7 +23,9 @@ interface OfferRideScreenProps {
     destination: string,
     availableSeats: number,
     pricePerSeat: number,
-    vehicleModel: string
+    vehicleModel: string,
+    departureTime?: string,
+    distanceKm?: number
   ) => void;
   onNavigate: (tab: TabScreen) => void;
 }
@@ -56,7 +58,9 @@ export const OfferRideScreen: React.FC<OfferRideScreenProps> = ({
       destination.trim(),
       seats,
       price,
-      getCarFullName(selectedCar)
+      getCarFullName(selectedCar),
+      departureTime.trim() || 'In 30 mins',
+      distanceKm
     );
 
     confetti({ particleCount: 70, spread: 60 });

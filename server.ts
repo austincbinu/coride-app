@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 
@@ -22,7 +23,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// In-memory data store for server-side persistence
+// In-memory & file-backed data store for server-side persistence
 interface ServerUser {
   id: string;
   name: string;
@@ -83,10 +84,168 @@ interface ServerSosAlert {
   status: 'DISPATCHED' | 'RESOLVED';
 }
 
+const DATA_DIR = path.join(process.cwd(), 'data_store');
+if (!fs.existsSync(DATA_DIR)) {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  } catch (e) {
+    console.warn('Could not create data_store directory:', e);
+  }
+}
+const RIDES_FILE = path.join(DATA_DIR, 'rides.json');
+const CHATS_FILE = path.join(DATA_DIR, 'chats.json');
+
+// Initial seed rides for campus carpooling
+const SAMPLE_CAMPUS_RIDES: ServerRide[] = [
+  {
+    id: 'ride_tly_01',
+    driverName: 'Rahul Sharma',
+    driverCollege: 'College of Engineering Thalassery (TLY)',
+    driverRating: 4.9,
+    isDriverVerified: true,
+    vehicleModel: 'Maruti Suzuki Swift',
+    vehiclePlate: 'KL-58-AB-4321',
+    originName: 'TLY Campus Gate, Thalassery',
+    destinationName: 'Kannur Old Bus Stand',
+    originLat: 11.7584,
+    originLng: 75.5398,
+    destLat: 11.8745,
+    destLng: 75.3704,
+    distanceKm: 21.5,
+    totalSeats: 4,
+    availableSeats: 3,
+    basePricePerSeat: 45,
+    departureTime: '04:30 PM Today',
+    status: 'UPCOMING',
+    routeDeviationPercent: 1.2,
+    passengers: [],
+    createdAt: new Date(Date.now() - 3600000).toISOString(),
+  },
+  {
+    id: 'ride_cet_02',
+    driverName: 'Ananya Nair',
+    driverCollege: 'College of Engineering Trivandrum (CET)',
+    driverRating: 5.0,
+    isDriverVerified: true,
+    vehicleModel: 'Tata Nexon EV',
+    vehiclePlate: 'KL-01-CZ-8899',
+    originName: 'CET Kulathoor Campus, TVM',
+    destinationName: 'Thampanoor Central Railway Station',
+    originLat: 8.5475,
+    originLng: 76.9063,
+    destLat: 8.487,
+    destLng: 76.9528,
+    distanceKm: 14.8,
+    totalSeats: 4,
+    availableSeats: 2,
+    basePricePerSeat: 35,
+    departureTime: '05:15 PM Today',
+    status: 'UPCOMING',
+    routeDeviationPercent: 0.8,
+    passengers: [],
+    createdAt: new Date(Date.now() - 7200000).toISOString(),
+  },
+  {
+    id: 'ride_mec_03',
+    driverName: 'Austin Binu',
+    driverCollege: 'Govt. Model Engineering College (MEC Kochi)',
+    driverRating: 4.95,
+    isDriverVerified: true,
+    vehicleModel: 'Hyundai i20',
+    vehiclePlate: 'KL-07-BW-2024',
+    originName: 'MEC Thrikkakara Main Gate',
+    destinationName: 'Infopark Phase 1 & 2 Kakkanad',
+    originLat: 10.0284,
+    originLng: 76.3287,
+    destLat: 10.0104,
+    destLng: 76.3638,
+    distanceKm: 8.5,
+    totalSeats: 3,
+    availableSeats: 3,
+    basePricePerSeat: 25,
+    departureTime: '06:00 PM Today',
+    status: 'UPCOMING',
+    routeDeviationPercent: 1.0,
+    passengers: [],
+    createdAt: new Date(Date.now() - 1800000).toISOString(),
+  },
+];
+
+function loadRides(): ServerRide[] {
+  try {
+    if (fs.existsSync(RIDES_FILE)) {
+      const content = fs.readFileSync(RIDES_FILE, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn('Error reading rides from disk:', err);
+  }
+  return [...SAMPLE_CAMPUS_RIDES];
+}
+
+function saveRides(data: ServerRide[]) {
+  try {
+    fs.writeFileSync(RIDES_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('Error saving rides to disk:', err);
+  }
+}
+
+function loadChats(): ServerChatMessage[] {
+  try {
+    if (fs.existsSync(CHATS_FILE)) {
+      const content = fs.readFileSync(CHATS_FILE, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (err) {
+    console.warn('Error reading chats from disk:', err);
+  }
+  return [];
+}
+
+function saveChats(data: ServerChatMessage[]) {
+  try {
+    fs.writeFileSync(CHATS_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('Error saving chats to disk:', err);
+  }
+}
+
 const verifiedUsers: Map<string, ServerUser> = new Map();
-let rides: ServerRide[] = [];
-let chatMessages: ServerChatMessage[] = [];
+let rides: ServerRide[] = loadRides();
+let chatMessages: ServerChatMessage[] = loadChats();
 const sosAlerts: ServerSosAlert[] = [];
+
+// ==========================================
+// REAL-TIME SSE (Server-Sent Events) BROADCAST
+// ==========================================
+const sseClients = new Set<express.Response>();
+
+function broadcastSSE(data: any) {
+  const payload = `data: ${JSON.stringify(data)}\n\n`;
+  for (const client of sseClients) {
+    try {
+      client.write(payload);
+    } catch {
+      sseClients.delete(client);
+    }
+  }
+}
+
+// Keep-alive heartbeat every 15 seconds to prevent network timeouts
+setInterval(() => {
+  for (const client of sseClients) {
+    try {
+      client.write(': ping\n\n');
+    } catch {
+      sseClients.delete(client);
+    }
+  }
+}, 15000);
 
 // Branch map & Place map for server-side verification
 const BRANCH_MAP: Record<string, string> = {
@@ -247,6 +406,25 @@ app.get('/api/rides', (req, res) => {
   res.json({ success: true, count: filtered.length, rides: filtered });
 });
 
+// SSE Real-time events connection endpoint
+app.get('/api/events', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+  });
+
+  // Send initial sync event
+  res.write(`data: ${JSON.stringify({ type: 'CONNECTED', rides, chatMessages })}\n\n`);
+
+  sseClients.add(res);
+
+  req.on('close', () => {
+    sseClients.delete(res);
+  });
+});
+
 // Create ride offer
 app.post('/api/rides', (req, res) => {
   const {
@@ -302,6 +480,15 @@ app.post('/api/rides', (req, res) => {
   };
 
   rides.unshift(newRide);
+  saveRides(rides);
+  
+  // Instant broadcast to ALL connected friends and clients
+  broadcastSSE({
+    type: 'RIDE_CREATED',
+    ride: newRide,
+    rides,
+  });
+
   res.status(201).json({ success: true, ride: newRide });
 });
 
@@ -327,6 +514,15 @@ app.post('/api/rides/:id/book', (req, res) => {
     ride.passengers.push(passengerName);
   }
 
+  saveRides(rides);
+
+  // Broadcast seat booking to all connected users in real time
+  broadcastSSE({
+    type: 'RIDE_UPDATED',
+    ride,
+    rides,
+  });
+
   res.json({
     success: true,
     message: 'Seat successfully reserved!',
@@ -344,6 +540,15 @@ app.delete('/api/rides/:id', (req, res) => {
   if (rides.length === initialLength) {
     return res.status(404).json({ error: 'Ride not found' });
   }
+
+  saveRides(rides);
+
+  // Broadcast deletion
+  broadcastSSE({
+    type: 'RIDE_DELETED',
+    rideId: id,
+    rides,
+  });
 
   res.json({ success: true, message: 'Ride cancelled successfully' });
 });
@@ -376,6 +581,15 @@ app.post('/api/chat/messages', (req, res) => {
   };
 
   chatMessages.push(newMsg);
+  saveChats(chatMessages);
+
+  // Broadcast live chat message
+  broadcastSSE({
+    type: 'CHAT_MESSAGE',
+    message: newMsg,
+    chatMessages,
+  });
+
   res.status(201).json({ success: true, message: newMsg });
 });
 

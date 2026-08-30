@@ -84,21 +84,95 @@ export default function App() {
 
   const [isSosOpen, setIsSosOpen] = useState(false);
   const [isPhoneFrame, setIsPhoneFrame] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // Load server-persisted rides and chat messages on mount
-  useEffect(() => {
-    apiClient.getRides().then((serverRides) => {
+  // Synchronize state with server
+  const syncWithServer = async (silent = false) => {
+    if (!silent) setIsSyncing(true);
+    try {
+      const [serverRides, serverMessages] = await Promise.all([
+        apiClient.getRides(),
+        apiClient.getChatMessages(),
+      ]);
+
       if (serverRides && serverRides.length > 0) {
         setRideOffers(serverRides);
       }
-    });
-
-    apiClient.getChatMessages().then((serverMessages) => {
       if (serverMessages && serverMessages.length > 0) {
         setChatMessages(serverMessages);
       }
+    } catch (e) {
+      console.warn('Sync error:', e);
+    } finally {
+      if (!silent) setIsSyncing(false);
+    }
+  };
+
+  // Real-time synchronization across devices and tabs via SSE + periodic fallback
+  useEffect(() => {
+    // 1. Initial fetch
+    syncWithServer(false);
+
+    // 2. Real-time push stream (Server-Sent Events)
+    const unsubscribeSSE = apiClient.subscribeToRealtimeEvents((event) => {
+      if (!event) return;
+
+      if (event.type === 'CONNECTED' || event.type === 'RIDES_UPDATED') {
+        if (event.rides && Array.isArray(event.rides)) {
+          setRideOffers(event.rides);
+        }
+        if (event.chatMessages && Array.isArray(event.chatMessages)) {
+          setChatMessages(event.chatMessages);
+        }
+      } else if (event.type === 'RIDE_CREATED') {
+        if (event.rides && Array.isArray(event.rides)) {
+          setRideOffers(event.rides);
+        } else if (event.ride) {
+          setRideOffers((prev) => [event.ride, ...prev.filter((r) => r.id !== event.ride.id)]);
+        }
+      } else if (event.type === 'RIDE_UPDATED') {
+        if (event.rides && Array.isArray(event.rides)) {
+          setRideOffers(event.rides);
+        } else if (event.ride) {
+          setRideOffers((prev) => prev.map((r) => (r.id === event.ride.id ? event.ride : r)));
+        }
+      } else if (event.type === 'RIDE_DELETED') {
+        if (event.rides && Array.isArray(event.rides)) {
+          setRideOffers(event.rides);
+        } else if (event.rideId) {
+          setRideOffers((prev) => prev.filter((r) => r.id !== event.rideId));
+        }
+      } else if (event.type === 'CHAT_MESSAGE') {
+        if (event.chatMessages && Array.isArray(event.chatMessages)) {
+          setChatMessages(event.chatMessages);
+        } else if (event.message) {
+          setChatMessages((prev) => [...prev.filter((m) => m.id !== event.message.id), event.message]);
+        }
+      }
     });
+
+    // 3. Resilient background interval (3s fallback)
+    const interval = setInterval(() => {
+      syncWithServer(true);
+    }, 3000);
+
+    // 4. Re-sync immediately on window focus
+    const onFocus = () => syncWithServer(true);
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+
+    return () => {
+      unsubscribeSSE();
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
   }, []);
+
+  // Re-sync when switching tabs
+  useEffect(() => {
+    syncWithServer(true);
+  }, [currentTab]);
 
   // Save changes to localStorage
   useEffect(() => {
@@ -128,7 +202,7 @@ export default function App() {
     setCurrentTab('auth');
   };
 
-  const handleBookRide = (rideId: string) => {
+  const handleBookRide = async (rideId: string) => {
     if (!bookedRideIds.includes(rideId)) {
       setBookedRideIds((prev) => [...prev, rideId]);
       setRideOffers((prev) =>
@@ -137,21 +211,25 @@ export default function App() {
         )
       );
       // Sync with backend API
-      apiClient.bookRide(rideId, currentUser?.name, currentUser?.id);
+      await apiClient.bookRide(rideId, currentUser?.name, currentUser?.id);
+      syncWithServer(true);
     }
   };
 
-  const handleDeleteRide = (id: string) => {
+  const handleDeleteRide = async (id: string) => {
     setRideOffers((prev) => prev.filter((r) => r.id !== id));
-    apiClient.deleteRide(id);
+    await apiClient.deleteRide(id);
+    syncWithServer(true);
   };
 
-  const handleCreateRide = (
+  const handleCreateRide = async (
     origin: string,
     destination: string,
     availableSeats: number,
     pricePerSeat: number,
-    vehicleModel: string
+    vehicleModel: string,
+    departureTime?: string,
+    distanceKm?: number
   ) => {
     const newRidePayload: Partial<RideOffer> = {
       driverName: currentUser?.name || 'Student Driver',
@@ -161,36 +239,38 @@ export default function App() {
       driverRating: currentUser?.rating ?? 5.0,
       isDriverVerified: currentUser?.isVerified ?? true,
       vehicleModel,
-      vehiclePlate: 'KL-01-XX-2024',
+      vehiclePlate: 'KL-01-XX-2025',
       originName: origin,
       destinationName: destination,
       originLat: 8.5475,
       originLng: 76.9063,
       destLat: 8.487,
       destLng: 76.9528,
-      distanceKm: 18.4,
+      distanceKm: distanceKm || 18.4,
       totalSeats: availableSeats + 1,
       availableSeats,
       basePricePerSeat: pricePerSeat,
-      departureTime: 'In 30 mins',
+      departureTime: departureTime?.trim() || 'In 30 mins',
       status: 'UPCOMING',
       routeDeviationPercent: 1.5,
     };
 
     // Optimistic local update
+    const tempId = `ride_${Date.now()}`;
     const tempRide: RideOffer = {
       ...newRidePayload,
-      id: `ride_${Date.now()}`,
+      id: tempId,
     } as RideOffer;
 
-    setRideOffers((prev) => [tempRide, ...prev]);
+    setRideOffers((prev) => [tempRide, ...prev.filter((r) => r.id !== tempId)]);
 
-    // Persist to backend
-    apiClient.createRide(newRidePayload).then((savedRide) => {
-      if (savedRide) {
-        setRideOffers((prev) => prev.map((r) => (r.id === tempRide.id ? savedRide : r)));
-      }
-    });
+    // Persist to backend and immediately fetch authoritative list
+    const savedRide = await apiClient.createRide(newRidePayload);
+    if (savedRide) {
+      setRideOffers((prev) => [savedRide, ...prev.filter((r) => r.id !== tempId && r.id !== savedRide.id)]);
+      // Refresh to ensure full server synchronization
+      syncWithServer(true);
+    }
   };
 
   const handleSendMessage = (text: string) => {
@@ -280,8 +360,11 @@ export default function App() {
             <HomeScreen
               currentUser={currentUser}
               activeRide={activeScheduledRide}
+              rideOffers={rideOffers}
+              bookedRideIds={bookedRideIds}
               onNavigate={setCurrentTab}
               onSelectRide={() => setCurrentTab('request')}
+              onBookRide={handleBookRide}
             />
           )}
 
@@ -292,6 +375,8 @@ export default function App() {
               bookedRideIds={bookedRideIds}
               onBookRide={handleBookRide}
               onDeleteRide={handleDeleteRide}
+              onRefreshRides={() => syncWithServer(false)}
+              isSyncing={isSyncing}
             />
           )}
 

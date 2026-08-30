@@ -11,6 +11,30 @@ interface CollegeIdScanOverlayProps {
   onClose?: () => void;
 }
 
+const SAMPLE_STUDENTS = [
+  {
+    name: 'Rahul Sharma',
+    id: 'tly25cs001',
+    branch: 'Computer Science & Engineering',
+    phone: '9876543210',
+    label: 'Rahul S. (TLY CS)',
+  },
+  {
+    name: 'Ananya Nair',
+    id: 'cet24ec042',
+    branch: 'Electronics & Communication Engineering',
+    phone: '9447123456',
+    label: 'Ananya N. (CET EC)',
+  },
+  {
+    name: 'Austin Binu',
+    id: 'mec23ai018',
+    branch: 'Artificial Intelligence & Data Science',
+    phone: '8891234567',
+    label: 'Austin B. (MEC AI)',
+  },
+];
+
 export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
   onVerificationComplete,
   onClose,
@@ -26,6 +50,14 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
   // Real-time parsing of student ID format: [place][year][branch][roll] (e.g. tly25cs001)
   const parsedId = parseAndValidateStudentId(idNumber);
   const phoneValidation = normalizePhoneNumber(phone);
+
+  const handleQuickFill = (sample: typeof SAMPLE_STUDENTS[0]) => {
+    setName(sample.name);
+    setIdNumber(sample.id);
+    setBranch(sample.branch);
+    setPhone(sample.phone);
+    setValidationError('');
+  };
 
   // Automatically update branch when ID is typed if branch is empty or was auto-populated
   useEffect(() => {
@@ -44,30 +76,29 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
     setValidationError('');
 
     if (!name.trim()) {
-      setValidationError('Please enter your full name as shown on your student ID.');
+      setValidationError('Please enter your full student name.');
       return;
     }
 
     if (!idNumber.trim()) {
-      setValidationError('Please enter your student ID or Register Number (e.g., tly25cs001).');
-      return;
-    }
-
-    if (!parsedId.isValid) {
-      setValidationError(
-        parsedId.errorMessage ||
-          'Please enter a valid student ID / Register Number.'
-      );
+      setValidationError('Please enter your student ID or Register Number (e.g. tly25cs001).');
       return;
     }
 
     if (!branch.trim()) {
-      setValidationError('Please specify or select your academic branch.');
+      setValidationError('Please specify or select your academic branch / department.');
+      return;
+    }
+
+    if (!phone.trim()) {
+      setValidationError('Please enter your mobile phone number.');
       return;
     }
 
     if (!phoneValidation.isValid) {
-      setValidationError(phoneValidation.errorMessage || 'Please enter a valid 10-digit mobile phone number.');
+      setValidationError(
+        phoneValidation.errorMessage || 'Please enter a valid 10-digit mobile number (e.g. 9876543210).'
+      );
       return;
     }
 
@@ -134,7 +165,7 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
   return (
     <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xl p-6 max-w-xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+      <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
             <ShieldCheck className="w-5 h-5" />
@@ -142,7 +173,7 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
           <div>
             <h2 className="text-lg font-bold text-slate-900">Student ID Verification</h2>
             <p className="text-xs text-slate-500">
-              Strict institutional verification for closed-network campus carpooling
+              Institutional verification for closed-network campus carpooling
             </p>
           </div>
         </div>
@@ -155,6 +186,29 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
             ✕
           </button>
         )}
+      </div>
+
+      {/* Quick Fill Test Profiles */}
+      <div className="mb-4 p-2.5 bg-indigo-50/60 border border-indigo-100/80 rounded-2xl">
+        <div className="flex items-center justify-between mb-1.5 px-1">
+          <span className="text-[11px] font-bold text-indigo-900 flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+            Quick 1-Click Test Profiles:
+          </span>
+          <span className="text-[10px] text-indigo-600 font-medium">Click to autofill</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {SAMPLE_STUDENTS.map((sample) => (
+            <button
+              key={sample.id}
+              type="button"
+              onClick={() => handleQuickFill(sample)}
+              className="px-2.5 py-1 text-xs bg-white hover:bg-indigo-600 hover:text-white text-indigo-700 font-semibold rounded-lg border border-indigo-200 shadow-xs transition-all flex items-center gap-1"
+            >
+              🎓 {sample.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Form Fields */}
@@ -186,7 +240,7 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
           </div>
           <input
             type="text"
-            placeholder="e.g. tly25cs001 or 2025CS101"
+            placeholder="e.g. tly25cs001"
             value={idNumber}
             onChange={(e) => setIdNumber(e.target.value)}
             className={`w-full px-3.5 py-2.5 rounded-xl border focus:outline-none focus:ring-2 font-mono text-sm tracking-wide ${
@@ -196,8 +250,27 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
             }`}
             required
           />
+
+          {/* Real-time ID breakdown tags */}
+          {parsedId.placeCode && (
+            <div className="flex flex-wrap gap-1.5 mt-1.5 text-[10px] font-mono">
+              <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-100">
+                🏛️ {parsedId.placeCode}: {parsedId.placeName?.split('(')[0] || 'Campus'}
+              </span>
+              <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-100">
+                📅 Batch {parsedId.fullYear}
+              </span>
+              <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md border border-amber-100">
+                💻 {parsedId.branchCode}: {parsedId.branchName?.split(' ')[0]}
+              </span>
+              <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200">
+                🔢 Roll #{parsedId.rollNo}
+              </span>
+            </div>
+          )}
+
           <p className="text-[11px] text-slate-500 mt-1">
-            Format: <strong className="font-mono text-indigo-600">tly25cs001</strong> (college place + year + branch + roll) or university register no.
+            Format: <strong className="font-mono text-indigo-600">tly25cs001</strong> (campus + year + branch + roll)
           </p>
         </div>
 
@@ -236,7 +309,7 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
                     phoneValidation.isValid ? 'text-emerald-600' : 'text-slate-500'
                   }`}
                 >
-                  {phoneValidation.isValid ? '✓ Valid Mobile' : 'Enter phone digits'}
+                  {phoneValidation.isValid ? '✓ Valid (10 Digits)' : `${phone.replace(/\D/g, '').length}/10 digits`}
                 </span>
               )}
             </div>
@@ -258,7 +331,7 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
         </div>
 
         {validationError && (
-          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2 animate-shake">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{validationError}</span>
           </div>
@@ -316,8 +389,8 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
         <div className="pt-2">
           <button
             type="submit"
-            disabled={isScanning || (!!idNumber && !parsedId.isValid) || (!!phone.trim() && !phoneValidation.isValid)}
-            className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            disabled={isScanning}
+            className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
           >
             <ShieldCheck className="w-4 h-4" />
             {isScanning ? 'Verifying Student ID...' : 'Verify Student ID'}

@@ -72,14 +72,30 @@ export function normalizePhoneNumber(rawPhone: string): {
   }
 
   // Strip all non-digit characters
-  const digits = rawPhone.replace(/\D/g, '');
+  let digits = rawPhone.replace(/\D/g, '');
 
-  // Accept any phone number with digits (no country code required)
-  if (digits.length >= 4) {
+  // If user included +91 or leading 0, cleanly normalize it
+  if (digits.length === 12 && digits.startsWith('91')) {
+    digits = digits.slice(2);
+  } else if (digits.length === 11 && digits.startsWith('0')) {
+    digits = digits.slice(1);
+  }
+
+  // Standard 10-digit mobile number
+  if (digits.length === 10) {
     return {
       isValid: true,
       cleanPhone: digits,
-      displayPhone: rawPhone.trim(),
+      displayPhone: `${digits.slice(0, 5)} ${digits.slice(5)}`,
+    };
+  }
+
+  // Also accept numbers with 7 to 15 digits
+  if (digits.length >= 7 && digits.length <= 15) {
+    return {
+      isValid: true,
+      cleanPhone: digits,
+      displayPhone: digits,
     };
   }
 
@@ -87,7 +103,7 @@ export function normalizePhoneNumber(rawPhone: string): {
     isValid: false,
     cleanPhone: digits,
     displayPhone: rawPhone.trim(),
-    errorMessage: 'Please enter a valid phone number with digits.',
+    errorMessage: `Please enter a 10-digit mobile number (currently ${digits.length} digits).`,
   };
 }
 

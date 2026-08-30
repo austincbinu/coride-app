@@ -159,36 +159,48 @@ app.post('/api/auth/verify-student', (req, res) => {
     return res.status(400).json({ error: 'Student ID / Register number is required.' });
   }
 
-  const rawId = idNumber.trim();
-  const regex = /^([a-zA-Z]{3,4})(\d{2})([a-zA-Z]{2})(\d{3})$/;
-  const match = rawId.match(regex);
+  // Clean phone input and strip country codes like +91 or leading 0
+  let phoneDigits = (phone || '').replace(/\D/g, '');
+  if (phoneDigits.length === 12 && phoneDigits.startsWith('91')) {
+    phoneDigits = phoneDigits.slice(2);
+  } else if (phoneDigits.length === 11 && phoneDigits.startsWith('0')) {
+    phoneDigits = phoneDigits.slice(1);
+  }
 
-  if (!match) {
+  if (phoneDigits.length < 10 || phoneDigits.length > 15) {
     return res.status(400).json({
-      error: 'Invalid Student ID format. Must follow [place][year][branch][roll] (e.g. tly25cs001).',
+      error: 'Please enter a valid mobile phone number (at least 10 digits).',
     });
   }
 
-  const phoneDigits = (phone || '').replace(/\D/g, '');
-  if (phoneDigits.length !== 10) {
+  const rawId = idNumber.trim().replace(/[\s\-_.]/g, '');
+  const structuredRegex = /^([a-zA-Z]{2,6})(\d{2,4})([a-zA-Z]{1,4})(\d{1,5})$/;
+  const match = rawId.match(structuredRegex);
+
+  let placeName = 'Campus College';
+  let branchName = branch && branch.trim() ? branch.trim() : 'Engineering & Technology';
+  let formattedId = rawId.toUpperCase();
+  let studentEmail = `${name.trim().toLowerCase().replace(/\s+/g, '.')}@campus.ac.in`;
+  let userId = `usr_${Date.now()}`;
+
+  if (match) {
+    const placeCode = match[1].toUpperCase();
+    const yearDigits = match[2];
+    const branchCode = match[3].toUpperCase();
+    const rollNo = match[4];
+
+    const detectedBranchName = BRANCH_MAP[branchCode] || `${branchCode} Department`;
+    branchName = branch && branch.trim() ? branch.trim() : detectedBranchName;
+    placeName = PLACE_MAP[placeCode] || `${placeCode} Campus`;
+    formattedId = `${placeCode.toLowerCase()}${yearDigits}${branchCode.toLowerCase()}${rollNo}`;
+    studentEmail = `${name.trim().toLowerCase().replace(/\s+/g, '.')}@${placeCode.toLowerCase()}.ac.in`;
+    userId = `usr_${placeCode.toLowerCase()}_${rollNo}_${Date.now()}`;
+  } else if (rawId.length < 4) {
     return res.status(400).json({
-      error: 'Phone number must be exactly 10 digits.',
+      error: 'Student ID / Register number must be at least 4 characters.',
     });
   }
 
-  const placeCode = match[1].toUpperCase();
-  const yearDigits = match[2];
-  const branchCode = match[3].toUpperCase();
-  const rollNo = match[4];
-
-  const fullYear = 2000 + parseInt(yearDigits, 10);
-  const detectedBranchName = BRANCH_MAP[branchCode] || `${branchCode} Department`;
-  const branchName = branch && branch.trim() ? branch.trim() : detectedBranchName;
-  const placeName = PLACE_MAP[placeCode] || `${placeCode} Campus`;
-  const formattedId = `${placeCode.toLowerCase()}${yearDigits}${branchCode.toLowerCase()}${rollNo}`;
-  const studentEmail = `${name.trim().toLowerCase().replace(/\s+/g, '.')}@${placeCode.toLowerCase()}.ac.in`;
-
-  const userId = `usr_${placeCode.toLowerCase()}_${rollNo}_${Date.now()}`;
   const user: ServerUser = {
     id: userId,
     name: name.trim(),
@@ -208,14 +220,17 @@ app.post('/api/auth/verify-student', (req, res) => {
   res.json({
     success: true,
     user,
-    details: {
-      placeCode,
-      placeName,
-      batchYear: fullYear,
-      branchCode,
-      branchName,
-      rollNo,
-      phone: phoneDigits,
+    scanResult: {
+      success: true,
+      extractedName: user.name,
+      extractedCollege: user.collegeName,
+      extractedIdNumber: user.studentIdNumber,
+      extractedEmail: user.email,
+      extractedDepartment: user.department,
+      extractedPhone: user.phoneNumber,
+      rawText: `VERIFIED CAMPUS ID: ${user.studentIdNumber}\n${user.name}\n${user.collegeName}\nDEPT: ${user.department}\nPHONE: ${user.phoneNumber}`,
+      isStudentIdValid: true,
+      confidenceScore: 0.99,
     },
   });
 });

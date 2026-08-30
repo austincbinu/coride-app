@@ -56,14 +56,64 @@ export const PLACE_MAP: Record<string, string> = {
   MLP: 'Malappuram Campus',
 };
 
+export function normalizePhoneNumber(rawPhone: string): {
+  isValid: boolean;
+  cleanPhone: string;
+  displayPhone: string;
+  errorMessage?: string;
+} {
+  if (!rawPhone || !rawPhone.trim()) {
+    return {
+      isValid: false,
+      cleanPhone: '',
+      displayPhone: '',
+      errorMessage: 'Please enter your mobile phone number.',
+    };
+  }
+
+  // Strip all non-digit characters
+  let digits = rawPhone.replace(/\D/g, '');
+
+  // Handle common country code prefixes (e.g., India +91)
+  if (digits.length === 12 && digits.startsWith('91')) {
+    digits = digits.slice(2);
+  } else if (digits.length === 11 && digits.startsWith('0')) {
+    digits = digits.slice(1);
+  }
+
+  // Accept valid phone numbers (10 digits standard mobile, or 7-15 digits international)
+  if (digits.length >= 10 && digits.length <= 15) {
+    const formatted =
+      digits.length === 10
+        ? `${digits.slice(0, 5)} ${digits.slice(5)}`
+        : digits;
+    return {
+      isValid: true,
+      cleanPhone: digits,
+      displayPhone: formatted,
+    };
+  }
+
+  if (digits.length < 10) {
+    return {
+      isValid: false,
+      cleanPhone: digits,
+      displayPhone: digits,
+      errorMessage: `Phone number is too short (${digits.length}/10 digits). Please enter at least 10 digits.`,
+    };
+  }
+
+  return {
+    isValid: true,
+    cleanPhone: digits,
+    displayPhone: digits,
+  };
+}
+
 /**
- * Strict parser for student ID in the format:
- * [college_place (3-4 letters)][year (2 digits)][branch (2 letters)][roll_no (3 digits)]
- * Example: tly25cs001
- * - tly = college place
- * - 25 = year of joining (2025)
- * - cs = branch (Computer Science)
- * - 001 = roll no
+ * Intelligent parser for student ID.
+ * Primary format: [college_place][year][branch][roll_no] (e.g., tly25cs001)
+ * Also accepts flexible formats (e.g. CET22EC045, 21CS001, KTU2021001, etc.)
  */
 export function parseAndValidateStudentId(rawId: string): ParsedStudentId {
   const trimmed = rawId.trim();
@@ -75,37 +125,58 @@ export function parseAndValidateStudentId(rawId: string): ParsedStudentId {
     };
   }
 
-  // Strict format matching: 3-4 letters place, 2 digits year, 2 letters branch, 3 digits roll
-  const regex = /^([a-zA-Z]{3,4})(\d{2})([a-zA-Z]{2})(\d{3})$/;
-  const match = trimmed.match(regex);
+  // Clean out spaces, dashes, dots, underscores
+  const cleanId = trimmed.replace(/[\s\-_.]/g, '');
 
-  if (!match) {
+  if (cleanId.length < 4) {
     return {
       isValid: false,
-      errorMessage:
-        "Student ID must follow format: [place][year][branch][roll] (e.g., tly25cs001).",
+      errorMessage: 'Student ID / Register number is too short.',
     };
   }
 
-  const placeCode = match[1].toUpperCase();
-  const yearDigits = match[2];
-  const branchCode = match[3].toUpperCase();
-  const rollNo = match[4];
+  // Primary structured format: [place: 2-5 letters][year: 2-4 digits][branch: 1-4 letters][roll: 1-5 digits]
+  // Example: tly25cs001, cet22ec045, gec24ai012
+  const structuredRegex = /^([a-zA-Z]{2,6})(\d{2,4})([a-zA-Z]{1,4})(\d{1,5})$/;
+  const match = cleanId.match(structuredRegex);
 
-  const fullYear = 2000 + parseInt(yearDigits, 10);
-  const branchName = BRANCH_MAP[branchCode] || `${branchCode} Department`;
-  const placeName = PLACE_MAP[placeCode] || `${placeCode} Campus`;
+  if (match) {
+    const placeCode = match[1].toUpperCase();
+    const yearDigits = match[2];
+    const branchCode = match[3].toUpperCase();
+    const rollNo = match[4];
+
+    const fullYear = yearDigits.length === 2 ? 2000 + parseInt(yearDigits, 10) : parseInt(yearDigits, 10);
+    const branchName = BRANCH_MAP[branchCode] || `${branchCode} Department`;
+    const placeName = PLACE_MAP[placeCode] || `${placeCode} Campus`;
+
+    return {
+      isValid: true,
+      placeCode,
+      placeName,
+      yearOfJoining: yearDigits,
+      fullYear,
+      branchCode,
+      branchName,
+      rollNo,
+      formattedId: `${placeCode.toLowerCase()}${yearDigits}${branchCode.toLowerCase()}${rollNo}`,
+    };
+  }
+
+  // Fallback: Accept any valid alphanumeric student registration / roll number
+  const alphanumericRegex = /^[a-zA-Z0-9]{4,25}$/;
+  if (alphanumericRegex.test(cleanId)) {
+    return {
+      isValid: true,
+      formattedId: cleanId.toUpperCase(),
+      placeName: 'Campus College',
+      branchName: 'Engineering & Technology',
+    };
+  }
 
   return {
-    isValid: true,
-    placeCode,
-    placeName,
-    yearOfJoining: yearDigits,
-    fullYear,
-    branchCode,
-    branchName,
-    rollNo,
-    formattedId: `${placeCode.toLowerCase()}${yearDigits}${branchCode.toLowerCase()}${rollNo}`,
+    isValid: false,
+    errorMessage: 'Please enter a valid student ID (letters and numbers).',
   };
 }
 

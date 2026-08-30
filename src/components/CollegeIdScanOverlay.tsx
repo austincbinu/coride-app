@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Scan, CheckCircle2, ShieldCheck, Sparkles, AlertCircle, Check, X, Phone, GraduationCap, Server } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { OcrScanResult, User } from '../types';
-import { convertScanToUser, parseAndValidateStudentId, BRANCH_MAP } from '../services/ocrScannerService';
+import { convertScanToUser, parseAndValidateStudentId, normalizePhoneNumber, BRANCH_MAP } from '../services/ocrScannerService';
 import { apiClient } from '../services/apiClient';
 
 interface CollegeIdScanOverlayProps {
@@ -25,6 +25,7 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
 
   // Real-time parsing of student ID format: [place][year][branch][roll] (e.g. tly25cs001)
   const parsedId = parseAndValidateStudentId(idNumber);
+  const phoneValidation = normalizePhoneNumber(phone);
 
   // Automatically update branch when ID is typed if branch is empty or was auto-populated
   useEffect(() => {
@@ -55,7 +56,7 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
     if (!parsedId.isValid) {
       setValidationError(
         parsedId.errorMessage ||
-          'Invalid format! Must follow [place][year][branch][roll] (e.g., tly25cs001).'
+          'Please enter a valid student ID / Register Number.'
       );
       return;
     }
@@ -65,20 +66,14 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
       return;
     }
 
-    const phoneDigits = phone.replace(/\D/g, '');
-    if (!phoneDigits) {
-      setValidationError('Please enter your 10-digit mobile phone number.');
+    if (!phoneValidation.isValid) {
+      setValidationError(phoneValidation.errorMessage || 'Please enter a valid 10-digit mobile phone number.');
       return;
     }
 
-    if (phoneDigits.length !== 10) {
-      setValidationError('Phone number must be exactly 10 digits (e.g. 9876543210).');
-      return;
-    }
-
-    const cleanPhone = phoneDigits;
-    const collegeName = parsedId.placeName || `${parsedId.placeCode} Campus`;
-    const deptName = branch.trim() || parsedId.branchName || `${parsedId.branchCode} Department`;
+    const cleanPhone = phoneValidation.cleanPhone;
+    const collegeName = parsedId.placeName || `${parsedId.placeCode || 'Campus'} College`;
+    const deptName = branch.trim() || parsedId.branchName || 'Engineering & Technology';
 
     setIsScanning(true);
 
@@ -86,7 +81,7 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
     apiClient
       .verifyStudent({
         name: name.trim(),
-        idNumber: idNumber.trim(),
+        idNumber: parsedId.formattedId || idNumber.trim(),
         branch: deptName,
         phone: cleanPhone,
       })
@@ -249,25 +244,24 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
                 <Phone className="w-3.5 h-3.5 text-indigo-600" />
                 Phone Number <span className="text-rose-500">*</span>
               </label>
-              {phone && (
+              {phone.trim() && (
                 <span
                   className={`text-[10px] font-mono font-bold ${
-                    phone.length === 10 ? 'text-emerald-600' : 'text-slate-400'
+                    phoneValidation.isValid ? 'text-emerald-600' : 'text-slate-500'
                   }`}
                 >
-                  {phone.length}/10 digits
+                  {phoneValidation.isValid ? '✓ Valid Mobile' : `${phoneValidation.cleanPhone.length}/10 digits`}
                 </span>
               )}
             </div>
             <input
               type="tel"
               placeholder="e.g. 9876543210"
-              maxLength={10}
               value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+              onChange={(e) => setPhone(e.target.value)}
               className={`w-full px-3.5 py-2.5 rounded-xl border focus:outline-none focus:ring-2 text-xs font-mono tracking-wider ${
-                phone
-                  ? phone.length === 10
+                phone.trim()
+                  ? phoneValidation.isValid
                     ? 'border-emerald-300 focus:ring-emerald-500 bg-emerald-50/30 text-emerald-950 font-bold'
                     : 'border-slate-200 focus:ring-indigo-500 bg-slate-50/50'
                   : 'border-slate-200 focus:ring-indigo-500 bg-slate-50/50'
@@ -311,8 +305,8 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
                 {parsedId.placeName || (parsedId.placeCode ? `${parsedId.placeCode} Campus` : 'College / University')}
               </div>
               <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
-                <span>ID: <strong className="text-white">{idNumber.trim().toLowerCase() || 'tly25cs001'}</strong></span>
-                {phone.trim() && <span className="text-indigo-200">📱 {phone.trim()}</span>}
+                <span>ID: <strong className="text-white">{parsedId.formattedId || idNumber.trim() || 'tly25cs001'}</strong></span>
+                {phone.trim() && <span className="text-indigo-200">📱 {phoneValidation.displayPhone || phone.trim()}</span>}
               </div>
             </div>
 
@@ -336,7 +330,7 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
         <div className="pt-2">
           <button
             type="submit"
-            disabled={isScanning || (!!idNumber && !parsedId.isValid) || (!!phone && phone.length !== 10)}
+            disabled={isScanning || (!!idNumber && !parsedId.isValid) || (!!phone.trim() && !phoneValidation.isValid)}
             className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <ShieldCheck className="w-4 h-4" />

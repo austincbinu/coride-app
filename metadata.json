@@ -1,0 +1,7 @@
+{
+  "name": "CoRide",
+  "description": "Smart College Ride Sharing Mobile App with campus route matching, student ID scanning, fair-share fuel calculation, and verified student carpools.",
+  "requestFramePermissions": ["camera", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

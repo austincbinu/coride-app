@@ -165,7 +165,7 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
           </label>
           <input
             type="text"
-            placeholder="e.g. Austin Binu"
+            placeholder="e.g. Rahul Sharma / Ananya Nair"
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50 text-sm"
@@ -178,40 +178,26 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
             <label className="block font-bold text-slate-700">
               Student ID / Register Number <span className="text-rose-500">*</span>
             </label>
-            {idNumber && (
-              <span
-                className={`text-[11px] font-bold flex items-center gap-1 ${
-                  parsedId.isValid ? 'text-emerald-600' : 'text-rose-600'
-                }`}
-              >
-                {parsedId.isValid ? (
-                  <>
-                    <Check className="w-3.5 h-3.5" /> Valid ID Format
-                  </>
-                ) : (
-                  <>
-                    <X className="w-3.5 h-3.5" /> Invalid format
-                  </>
-                )}
+            {idNumber.trim() && (
+              <span className="text-[11px] font-bold flex items-center gap-1 text-emerald-600">
+                <Check className="w-3.5 h-3.5" /> ID Entered
               </span>
             )}
           </div>
           <input
             type="text"
-            placeholder="e.g. tly25cs001"
+            placeholder="e.g. tly25cs001 or 2025CS101"
             value={idNumber}
             onChange={(e) => setIdNumber(e.target.value)}
             className={`w-full px-3.5 py-2.5 rounded-xl border focus:outline-none focus:ring-2 font-mono text-sm tracking-wide ${
-              idNumber
-                ? parsedId.isValid
-                  ? 'border-emerald-300 focus:ring-emerald-500 bg-emerald-50/30 text-emerald-950 font-bold'
-                  : 'border-rose-300 focus:ring-rose-500 bg-rose-50/30 text-rose-950'
+              idNumber.trim()
+                ? 'border-emerald-300 focus:ring-emerald-500 bg-emerald-50/30 text-emerald-950 font-bold'
                 : 'border-slate-200 focus:ring-indigo-500 bg-slate-50/50'
             }`}
             required
           />
           <p className="text-[11px] text-slate-500 mt-1">
-            Format: <strong className="font-mono text-indigo-600">tly25cs001</strong> (college place + joining year + branch + roll no)
+            Format: <strong className="font-mono text-indigo-600">tly25cs001</strong> (college place + year + branch + roll) or university register no.
           </p>
         </div>
 
@@ -250,7 +236,7 @@ export const CollegeIdScanOverlay: React.FC<CollegeIdScanOverlayProps> = ({
                     phoneValidation.isValid ? 'text-emerald-600' : 'text-slate-500'
                   }`}
                 >
-                  {phoneValidation.isValid ? '✓ Valid Mobile' : `${phoneValidation.cleanPhone.length}/10 digits`}
+                  {phoneValidation.isValid ? '✓ Valid Mobile' : 'Enter phone digits'}
                 </span>
               )}
             </div>

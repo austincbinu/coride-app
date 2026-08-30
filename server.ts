@@ -159,28 +159,20 @@ app.post('/api/auth/verify-student', (req, res) => {
     return res.status(400).json({ error: 'Student ID / Register number is required.' });
   }
 
-  // Clean phone input and strip country codes like +91 or leading 0
+  // Clean phone input
   let phoneDigits = (phone || '').replace(/\D/g, '');
-  if (phoneDigits.length === 12 && phoneDigits.startsWith('91')) {
-    phoneDigits = phoneDigits.slice(2);
-  } else if (phoneDigits.length === 11 && phoneDigits.startsWith('0')) {
-    phoneDigits = phoneDigits.slice(1);
+  if (!phoneDigits) {
+    phoneDigits = String(phone || '').trim();
   }
 
-  if (phoneDigits.length < 10 || phoneDigits.length > 15) {
-    return res.status(400).json({
-      error: 'Please enter a valid mobile phone number (at least 10 digits).',
-    });
-  }
-
-  const rawId = idNumber.trim().replace(/[\s\-_.]/g, '');
+  const rawId = (idNumber || '').trim().replace(/[\s\-_.]/g, '');
   const structuredRegex = /^([a-zA-Z]{2,6})(\d{2,4})([a-zA-Z]{1,4})(\d{1,5})$/;
   const match = rawId.match(structuredRegex);
 
   let placeName = 'Campus College';
   let branchName = branch && branch.trim() ? branch.trim() : 'Engineering & Technology';
-  let formattedId = rawId.toUpperCase();
-  let studentEmail = `${name.trim().toLowerCase().replace(/\s+/g, '.')}@campus.ac.in`;
+  let formattedId = rawId.toUpperCase() || 'STUDENT-PASS';
+  let studentEmail = `${(name || 'student').trim().toLowerCase().replace(/\s+/g, '.')}@campus.ac.in`;
   let userId = `usr_${Date.now()}`;
 
   if (match) {
@@ -195,10 +187,6 @@ app.post('/api/auth/verify-student', (req, res) => {
     formattedId = `${placeCode.toLowerCase()}${yearDigits}${branchCode.toLowerCase()}${rollNo}`;
     studentEmail = `${name.trim().toLowerCase().replace(/\s+/g, '.')}@${placeCode.toLowerCase()}.ac.in`;
     userId = `usr_${placeCode.toLowerCase()}_${rollNo}_${Date.now()}`;
-  } else if (rawId.length < 4) {
-    return res.status(400).json({
-      error: 'Student ID / Register number must be at least 4 characters.',
-    });
   }
 
   const user: ServerUser = {

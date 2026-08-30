@@ -72,48 +72,29 @@ export function normalizePhoneNumber(rawPhone: string): {
   }
 
   // Strip all non-digit characters
-  let digits = rawPhone.replace(/\D/g, '');
+  const digits = rawPhone.replace(/\D/g, '');
 
-  // Handle common country code prefixes (e.g., India +91)
-  if (digits.length === 12 && digits.startsWith('91')) {
-    digits = digits.slice(2);
-  } else if (digits.length === 11 && digits.startsWith('0')) {
-    digits = digits.slice(1);
-  }
-
-  // Accept valid phone numbers (10 digits standard mobile, or 7-15 digits international)
-  if (digits.length >= 10 && digits.length <= 15) {
-    const formatted =
-      digits.length === 10
-        ? `${digits.slice(0, 5)} ${digits.slice(5)}`
-        : digits;
+  // Accept any phone number with digits (no country code required)
+  if (digits.length >= 4) {
     return {
       isValid: true,
       cleanPhone: digits,
-      displayPhone: formatted,
-    };
-  }
-
-  if (digits.length < 10) {
-    return {
-      isValid: false,
-      cleanPhone: digits,
-      displayPhone: digits,
-      errorMessage: `Phone number is too short (${digits.length}/10 digits). Please enter at least 10 digits.`,
+      displayPhone: rawPhone.trim(),
     };
   }
 
   return {
-    isValid: true,
+    isValid: false,
     cleanPhone: digits,
-    displayPhone: digits,
+    displayPhone: rawPhone.trim(),
+    errorMessage: 'Please enter a valid phone number with digits.',
   };
 }
 
 /**
  * Intelligent parser for student ID.
  * Primary format: [college_place][year][branch][roll_no] (e.g., tly25cs001)
- * Also accepts flexible formats (e.g. CET22EC045, 21CS001, KTU2021001, etc.)
+ * Also accepts any student register / roll number directly.
  */
 export function parseAndValidateStudentId(rawId: string): ParsedStudentId {
   const trimmed = rawId.trim();
@@ -127,13 +108,6 @@ export function parseAndValidateStudentId(rawId: string): ParsedStudentId {
 
   // Clean out spaces, dashes, dots, underscores
   const cleanId = trimmed.replace(/[\s\-_.]/g, '');
-
-  if (cleanId.length < 4) {
-    return {
-      isValid: false,
-      errorMessage: 'Student ID / Register number is too short.',
-    };
-  }
 
   // Primary structured format: [place: 2-5 letters][year: 2-4 digits][branch: 1-4 letters][roll: 1-5 digits]
   // Example: tly25cs001, cet22ec045, gec24ai012
@@ -163,20 +137,12 @@ export function parseAndValidateStudentId(rawId: string): ParsedStudentId {
     };
   }
 
-  // Fallback: Accept any valid alphanumeric student registration / roll number
-  const alphanumericRegex = /^[a-zA-Z0-9]{4,25}$/;
-  if (alphanumericRegex.test(cleanId)) {
-    return {
-      isValid: true,
-      formattedId: cleanId.toUpperCase(),
-      placeName: 'Campus College',
-      branchName: 'Engineering & Technology',
-    };
-  }
-
+  // Accept any standard student register ID / roll number
   return {
-    isValid: false,
-    errorMessage: 'Please enter a valid student ID (letters and numbers).',
+    isValid: true,
+    formattedId: cleanId.toUpperCase(),
+    placeName: 'Campus College',
+    branchName: 'Engineering & Technology',
   };
 }
 
